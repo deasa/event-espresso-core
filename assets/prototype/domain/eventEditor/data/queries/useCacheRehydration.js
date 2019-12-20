@@ -1,4 +1,5 @@
 import { useApolloClient } from '@apollo/react-hooks';
+import { propOr } from 'ramda';
 import useCacheRehydrationData from './useCacheRehydrationData';
 import useRelations from '../../../../application/services/apollo/relations/useRelations';
 import useStatus from '../../../../application/services/apollo/status/useStatus';
@@ -24,62 +25,72 @@ const useCacheRehydration = () => {
 		return;
 	}
 
-	let { nodes = [] } = espressoPriceTypes;
-	if (nodes.length) {
-		client.writeQuery({
-			query: GET_PRICE_TYPES,
-			data: {
-				espressoPriceTypes,
-			},
-		});
-	}
+	Object.entries({ priceTypes: espressoPriceTypes, datetimes: espressoDatetimes, tickets: espressoTickets }).forEach(
+		([entityType, entities]) => {
+			let nodes = propOr([], 'nodes', entities);
 
-	({ nodes = [] } = espressoDatetimes);
-	if (nodes.length) {
-		client.writeQuery({
-			query: GET_DATETIMES,
-			variables: {
-				where: {
-					eventId,
-				},
-			},
-			data: {
-				espressoDatetimes,
-			},
-		});
-	}
+			if (!nodes.length) return;
 
-	const datetimeIn = nodes.map(({ id }) => id);
-	({ nodes = [] } = espressoTickets);
-	if (datetimeIn.length && nodes.length) {
-		client.writeQuery({
-			query: GET_TICKETS,
-			variables: {
-				where: {
-					datetimeIn,
-				},
-			},
-			data: {
-				espressoTickets,
-			},
-		});
-	}
+			if (entityType === 'priceTypes') {
+				client.writeQuery({
+					query: GET_PRICE_TYPES,
+					data: {
+						espressoPriceTypes,
+					},
+				});
+			}
 
-	const ticketIn = nodes.map(({ id }) => id);
-	({ nodes = [] } = espressoPrices);
-	if (ticketIn.length && nodes.length) {
-		client.writeQuery({
-			query: GET_PRICES,
-			variables: {
-				where: {
-					ticketIn,
-				},
-			},
-			data: {
-				espressoPrices,
-			},
-		});
-	}
+			if (entityType === 'datetimes') {
+				const dateTimeNodes = propOr([], 'nodes', espressoDatetimes);
+				const datetimeIn = dateTimeNodes.map(({ id }) => id);
+
+				client.writeQuery({
+					query: GET_DATETIMES,
+					variables: {
+						where: {
+							eventId,
+						},
+					},
+					data: {
+						espressoDatetimes,
+					},
+				});
+
+				if (datetimeIn.length) {
+					client.writeQuery({
+						query: GET_TICKETS,
+						variables: {
+							where: {
+								datetimeIn,
+							},
+						},
+						data: {
+							espressoTickets,
+						},
+					});
+				}
+			}
+
+			if (entityType === 'tickets') {
+				const ticketNodes = propOr([], 'nodes', espressoTickets);
+				const ticketIn = ticketNodes.map(({ id }) => id);
+
+				if (ticketIn.length) {
+					client.writeQuery({
+						query: GET_PRICES,
+						variables: {
+							where: {
+								ticketIn,
+							},
+						},
+						data: {
+							espressoPrices,
+						},
+					});
+				}
+			}
+		}
+	);
 
 	setData(relations);
 };
